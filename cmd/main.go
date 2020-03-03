@@ -38,14 +38,14 @@ func main() {
 		logger.Log("tracer endpoint err:", err)
 		os.Exit(5)
 	}
-	nativeTracer, err := zipkin.NewTracer(reporter, zipkin.WithLocalEndpoint(ep))
+
+	nativeTracer, err := zipkin.NewTracer(reporter, zipkin.WithLocalEndpoint(ep), zipkin.WithSharedSpans(true))
 	if err != nil {
 		logger.Log("tracer zptracer err:", err)
 		os.Exit(5)
 	}
 	tracer := zipkinot.Wrap(nativeTracer)
 	opentracing.SetGlobalTracer(tracer)
-
 	//初始化svc逻辑层
 	svc := domain.NewDonselfDomain()
 	svc = middleware.WithMetric(svc)

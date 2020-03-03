@@ -26,12 +26,13 @@ func NewDoneselfServer(svc domain.DonselfDomain, logger log.Logger, tracer stdop
 	options := []kitgrpc.ServerOption{
 		kitgrpc.ServerErrorHandler(transport.NewLogErrorHandler(logger)),
 	}
-
 	server.GetMyAllTargets = kitgrpc.NewServer(
 		tp.AllMyTargetsEndpoint,
 		server.mp.DecodeAllMyTargetsRequest,
 		server.mp.EncodeAllMyTargetsResponse,
-		append(options, kitgrpc.ServerBefore(opentracing.GRPCToContext(tracer, "allMyTargets", logger)))...,
+		append(options,
+			kitgrpc.ServerBefore(opentracing.GRPCToContext(tracer, "AllMyTargets", logger)),
+		)...,
 	)
 	return server
 }

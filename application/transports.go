@@ -32,7 +32,7 @@ func NewTransports(svc domain.DonselfDomain, tracer stdopentracing.Tracer) *Tran
 	tp.AllMyTargetsEndpoint = tp.makeAllMyTargetsEndpoint()
 	tp.AllMyTargetsEndpoint = circuitbreaker.Gobreaker(
 		gobreaker.NewCircuitBreaker(gobreaker.Settings{
-			Name:        "allMyTargets",
+			Name:        "AllMyTargets",
 			MaxRequests: 2,               //half-open状态下允许放行请求
 			Interval:    0,               //重置计数周期
 			Timeout:     time.Second * 5, //open状态下切入half-open周期，成功才切，不成功继续。
@@ -41,7 +41,7 @@ func NewTransports(svc domain.DonselfDomain, tracer stdopentracing.Tracer) *Tran
 			},
 		}),
 	)(tp.AllMyTargetsEndpoint)
-	tp.AllMyTargetsEndpoint = opentracing.TraceServer(tracer, "allMyTarget")(tp.AllMyTargetsEndpoint)
+	tp.AllMyTargetsEndpoint = opentracing.TraceServer(tracer, "AllMyTargets")(tp.AllMyTargetsEndpoint)
 	return tp
 }
 
