@@ -10,7 +10,8 @@ import (
 
 func main() {
 	ctx1, _ := context.WithTimeout(context.Background(), time.Second*5)
-	address := "localhost:10690"
+	address := "www.rennbon.online:10690"
+	address = "localhost:10690"
 	conn, err := grpc.DialContext(ctx1, address, grpc.WithBlock(), grpc.WithInsecure())
 	if err != nil {
 		log.Println("did not connect: %v", err)

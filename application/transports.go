@@ -1,3 +1,4 @@
+//传输层，选择传输协议用
 package application
 
 import (
@@ -7,6 +8,8 @@ import (
 	"github.com/Rennbon/donself/domain"
 	"github.com/go-kit/kit/circuitbreaker"
 	"github.com/go-kit/kit/endpoint"
+	"github.com/go-kit/kit/tracing/opentracing"
+	stdopentracing "github.com/opentracing/opentracing-go"
 	"github.com/sony/gobreaker"
 	"time"
 )
@@ -20,7 +23,7 @@ type Transports struct {
 //svc 为业务逻辑层，只需要锚定业务即可，无所考虑等和对外暴露结构相关逻辑，
 //所以这里的入参都是内部实体，竟可能不要用api传进来的实体，否则会污染代码，
 //不适于目前的设计模式，对于拆分解耦也不利。
-func NewTransports(svc domain.DonselfDomain) *Transports {
+func NewTransports(svc domain.DonselfDomain, tracer stdopentracing.Tracer) *Transports {
 	//todo 这里还能做很多
 
 	//curcuitBreaker
@@ -37,6 +40,7 @@ func NewTransports(svc domain.DonselfDomain) *Transports {
 			},
 		}),
 	)(tp.makeAllMyTargetsEndpoint())
+	tp.AllMyTargetsEndpoint = opentracing.TraceServer(tracer, "allMyTarget")(tp.AllMyTargetsEndpoint)
 	return tp
 }
 

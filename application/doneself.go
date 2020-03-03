@@ -4,7 +4,13 @@ import (
 	"context"
 	"github.com/Rennbon/donself/domain"
 	"github.com/Rennbon/donself/pb"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/tracing/opentracing"
+	"github.com/go-kit/kit/transport"
 	kitgrpc "github.com/go-kit/kit/transport/grpc"
+
+	grpctransport "github.com/go-kit/kit/transport/grpc"
+	stdopentracing "github.com/opentracing/opentracing-go"
 )
 
 //需要实现pb定义的接口
@@ -13,15 +19,20 @@ type DoneselfServer struct {
 	mp              GrpcMapper
 }
 
-func NewDoneselfServer(svc domain.DonselfDomain) pb.DoneselfServer {
-	tp := NewTransports(svc)
+func NewDoneselfServer(svc domain.DonselfDomain, logger log.Logger, tracer stdopentracing.Tracer) pb.DoneselfServer {
+	tp := NewTransports(svc, tracer)
 	server := new(DoneselfServer)
 	server.mp = new(mapper)
+
+	options := []grpctransport.ServerOption{
+		grpctransport.ServerErrorHandler(transport.NewLogErrorHandler(logger)),
+	}
 
 	server.GetMyAllTargets = kitgrpc.NewServer(
 		tp.AllMyTargetsEndpoint,
 		server.mp.DecodeAllMyTargetsRequest,
 		server.mp.EncodeAllMyTargetsResponse,
+		append(options, grpctransport.ServerBefore(opentracing.GRPCToContext(tracer, "allMyTargets", logger)))...,
 	)
 	return server
 }
