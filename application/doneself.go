@@ -9,7 +9,6 @@ import (
 	"github.com/go-kit/kit/transport"
 	kitgrpc "github.com/go-kit/kit/transport/grpc"
 
-	grpctransport "github.com/go-kit/kit/transport/grpc"
 	stdopentracing "github.com/opentracing/opentracing-go"
 )
 
@@ -24,15 +23,15 @@ func NewDoneselfServer(svc domain.DonselfDomain, logger log.Logger, tracer stdop
 	server := new(DoneselfServer)
 	server.mp = new(mapper)
 
-	options := []grpctransport.ServerOption{
-		grpctransport.ServerErrorHandler(transport.NewLogErrorHandler(logger)),
+	options := []kitgrpc.ServerOption{
+		kitgrpc.ServerErrorHandler(transport.NewLogErrorHandler(logger)),
 	}
 
 	server.GetMyAllTargets = kitgrpc.NewServer(
 		tp.AllMyTargetsEndpoint,
 		server.mp.DecodeAllMyTargetsRequest,
 		server.mp.EncodeAllMyTargetsResponse,
-		append(options, grpctransport.ServerBefore(opentracing.GRPCToContext(tracer, "allMyTargets", logger)))...,
+		append(options, kitgrpc.ServerBefore(opentracing.GRPCToContext(tracer, "allMyTargets", logger)))...,
 	)
 	return server
 }

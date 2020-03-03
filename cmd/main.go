@@ -7,7 +7,7 @@ import (
 	"github.com/Rennbon/donself/pb"
 	kitlogrus "github.com/go-kit/kit/log/logrus"
 	kitgrpc "github.com/go-kit/kit/transport/grpc"
-	stdopentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	zipkinot "github.com/openzipkin-contrib/zipkin-go-opentracing"
 	"github.com/openzipkin/zipkin-go"
 	zipkinhttp "github.com/openzipkin/zipkin-go/reporter/http"
@@ -19,7 +19,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"time"
 )
 
 func main() {
@@ -32,41 +31,20 @@ func main() {
 
 	//zipkin
 	// 创建环境变量
-	zipkinURL := "http://www.rennbon.online:9411/api/v2/spans"
-	zipkinBridge := true
-	var zipkinTracer *zipkin.Tracer
-	{
-		var (
-			err         error
-			hostPort    = ":10690"
-			serviceName = "donself"
-			//zipkin上报管理器
-			reporter = zipkinhttp.NewReporter(zipkinURL)
-		)
-		defer reporter.Close()
-		zEP, _ := zipkin.NewEndpoint(serviceName, hostPort)
-		//zipkin跟踪器
-		zipkinTracer, err = zipkin.NewTracer(
-			reporter, zipkin.WithLocalEndpoint(zEP),
-		)
-		if err != nil {
-			logger.Log("err", err)
-			os.Exit(1)
-		}
-		if !zipkinBridge {
-			logger.Log("tracer", "Zipkin", "type", "Native", "URL", zipkinURL)
-		}
+	reporter := zipkinhttp.NewReporter("http://www.rennbon.online:9411/api/v2/spans")
+	defer reporter.Close()
+	ep, err := zipkin.NewEndpoint("donself", "0.0.0.0:10690")
+	if err != nil {
+		logger.Log("tracer endpoint err:", err)
+		os.Exit(5)
 	}
-	// Determine which OpenTracing tracer to use. We'll pass the tracer to all the
-	// components that use it, as a dependency.
-	var tracer stdopentracing.Tracer
-	{
-		if zipkinBridge && zipkinTracer != nil {
-			logger.Log("tracer", "Zipkin", "type", "OpenTracing", "URL", zipkinURL)
-			tracer = zipkinot.Wrap(zipkinTracer)
-			zipkinTracer = nil // do not instrument with both native tracer and opentracing bridge
-		}
+	nativeTracer, err := zipkin.NewTracer(reporter, zipkin.WithLocalEndpoint(ep))
+	if err != nil {
+		logger.Log("tracer zptracer err:", err)
+		os.Exit(5)
 	}
+	tracer := zipkinot.Wrap(nativeTracer)
+	opentracing.SetGlobalTracer(tracer)
 
 	//初始化svc逻辑层
 	svc := domain.NewDonselfDomain()
@@ -85,7 +63,6 @@ func main() {
 
 	//todo 可以设置grpc基础配置
 	s := grpc.NewServer(
-		grpc.ConnectionTimeout(time.Minute),
 		grpc.UnaryInterceptor(kitgrpc.Interceptor),
 	)
 	pb.RegisterDoneselfServer(s, grpcServer)

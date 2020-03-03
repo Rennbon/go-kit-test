@@ -29,6 +29,7 @@ func NewTransports(svc domain.DonselfDomain, tracer stdopentracing.Tracer) *Tran
 	//curcuitBreaker
 	tp := new(Transports)
 	tp.svc = svc
+	tp.AllMyTargetsEndpoint = tp.makeAllMyTargetsEndpoint()
 	tp.AllMyTargetsEndpoint = circuitbreaker.Gobreaker(
 		gobreaker.NewCircuitBreaker(gobreaker.Settings{
 			Name:        "allMyTargets",
@@ -39,7 +40,7 @@ func NewTransports(svc domain.DonselfDomain, tracer stdopentracing.Tracer) *Tran
 				return counts.ConsecutiveFailures > 5
 			},
 		}),
-	)(tp.makeAllMyTargetsEndpoint())
+	)(tp.AllMyTargetsEndpoint)
 	tp.AllMyTargetsEndpoint = opentracing.TraceServer(tracer, "allMyTarget")(tp.AllMyTargetsEndpoint)
 	return tp
 }
