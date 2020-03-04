@@ -1,0 +1,24 @@
+[server]
+host= "0.0.0.0"
+port= "10690"
+metricsport= "10691"
+name="grpc_donself_svc"
+
+
+
+[consul]
+address="127.0.0.1:8500"
+scheme= "http"
+datacenter=""
+user= ""
+password=""
+waittime= "60s"
+
+[consul.tls]
+address="127.0.0.1:8500"
+cafile="/justdo/bc/donself/config/testdata/ca.crt"
+capath="/justdo/bc/donself/config/testdata/ca.dir"
+certfile="/justdo/bc/donself/config/testdata/server.crt"
+keyfile="/justdo/bc/donself/config/testdata/sever.key"
+enable=false
+
