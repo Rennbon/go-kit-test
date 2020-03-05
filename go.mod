@@ -6,8 +6,8 @@ require (
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/go-kit/kit v0.10.0
 	github.com/golang/protobuf v1.3.3
-	github.com/hashicorp/consul/api v1.3.0
-	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
+	github.com/hashicorp/consul v1.7.1 // indirect
+	github.com/hashicorp/consul/api v1.4.0
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/openzipkin-contrib/zipkin-go-opentracing v0.4.5
 	github.com/openzipkin/zipkin-go v0.2.2

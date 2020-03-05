@@ -20,10 +20,16 @@ type Config struct {
 	Consul *ConsulConfig `json:"consul"`
 }
 type ServerConfig struct {
-	Host        string `json:"host"`        // 127.0.0.1
-	Port        string `json:"port"`        // grpc 服务端口
-	MetricsPort string `json:"metricsport"` // http metrics端口，供prometheus拉取用
-	Name        string `json:"name"`        //service name
+	Local          bool          `json:"local"`          //是否本机
+	Host           string        `json:"host"`           // 127.0.0.1
+	Port           string        `json:"port"`           // grpc 服务端口
+	MetricsPort    string        `json:"metricsport"`    // http metrics端口，供prometheus拉取用
+	Name           string        `json:"name"`           //service name
+	HealthInterval time.Duration `json:"healthInterval"` //consul 健康检查周期
+	Deregister     time.Duration `json:"deregister"`     //consul 注销时间
+	ZipkinReporter string        `json:"zipkinReporter"` //http://XXX:9411/api/v2/spans
+	CertFile       string        `json:"certFile"`
+	KeyFile        string        `json:"keyFile"`
 }
 
 type ConsulConfig struct {

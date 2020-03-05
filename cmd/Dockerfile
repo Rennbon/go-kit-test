@@ -8,4 +8,4 @@ EXPOSE 10691
 EXPOSE 10690
 
 
-ENTRYPOINT ["./myapp"]
+ENTRYPOINT ["./myapp","-c","config.toml"]

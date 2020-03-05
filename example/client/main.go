@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/Rennbon/donself/pb"
 	"github.com/go-kit/kit/endpoint"
 	"github.com/go-kit/kit/log"
@@ -77,9 +78,13 @@ func main() {
 
 	ctx1, _ := context.WithTimeout(context.Background(), time.Second*5)
 	address := "www.rennbon.online:10690"
-	address = "localhost:10690"
-	conn, err := grpc.DialContext(ctx1, address, grpc.WithInsecure())
+	address = "127.0.0.1:10690"
+
+	//credentials.n
+	//creds, _ := credentials.NewClientTLSFromFile("/justdo/bc/donself/config/testdata/server.pem", "")
+	conn, err := grpc.DialContext(ctx1, address, grpc.WithInsecure()) //, grpc.WithTransportCredentials(creds))
 	if err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 	defer conn.Close()

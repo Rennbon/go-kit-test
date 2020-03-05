@@ -1,24 +1,28 @@
 package main
 
 import (
+	"fmt"
 	"github.com/Rennbon/donself/application"
 	"github.com/Rennbon/donself/config"
 	"github.com/Rennbon/donself/domain"
+	"github.com/Rennbon/donself/health"
 	"github.com/Rennbon/donself/middleware"
 	"github.com/Rennbon/donself/pb"
 	"github.com/go-kit/kit/log"
 	kitlogrus "github.com/go-kit/kit/log/logrus"
-	kitgrpc "github.com/go-kit/kit/transport/grpc"
 	"github.com/opentracing/opentracing-go"
 	zipkinot "github.com/openzipkin-contrib/zipkin-go-opentracing"
 	"github.com/openzipkin/zipkin-go"
 	zipkinhttp "github.com/openzipkin/zipkin-go/reporter/http"
 	"github.com/urfave/cli"
+	"google.golang.org/grpc/health/grpc_health_v1"
+	"strconv"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	kitconsul "github.com/go-kit/kit/sd/consul"
 	consulapi "github.com/hashicorp/consul/api"
 	"net"
 	"net/http"
@@ -56,28 +60,22 @@ func run(cliCtx *cli.Context) {
 		loggerG.Error(err)
 		os.Exit(1)
 	}
-
-	consulCli, err := newConsulCli(cnf.Consul)
-	if err != nil {
-		loggerG.Error(err)
-		os.Exit(2)
-	}
-
-	loggerG.Info("consulapi init success", consulCli)
+	grpcAddr := fmt.Sprintf("%v:%v", cnf.Server.Host, cnf.Server.Port)
+	metricAddr := fmt.Sprintf("%v:%v", cnf.Server.Host, cnf.Server.MetricsPort)
 
 	//zipkin
 	// 创建环境变量
-	reporter := zipkinhttp.NewReporter("http://www.rennbon.online:9411/api/v2/spans")
+	reporter := zipkinhttp.NewReporter(cnf.Server.ZipkinReporter)
 	defer reporter.Close()
-	ep, err := zipkin.NewEndpoint("donself", "0.0.0.0:10690")
+	ep, err := zipkin.NewEndpoint(cnf.Server.Name, grpcAddr)
 	if err != nil {
-		logger.Log("tracer endpoint err:", err)
+		loggerG.Error("tracer endpoint err:", err)
 		os.Exit(5)
 	}
-
+	port, _ := strconv.Atoi(cnf.Server.Port)
 	nativeTracer, err := zipkin.NewTracer(reporter, zipkin.WithLocalEndpoint(ep), zipkin.WithSharedSpans(true))
 	if err != nil {
-		logger.Log("tracer zptracer err:", err)
+		loggerG.Error("tracer zptracer err:", err)
 		os.Exit(5)
 	}
 	tracer := zipkinot.Wrap(nativeTracer)
@@ -89,8 +87,9 @@ func run(cliCtx *cli.Context) {
 	grpcServer := application.NewDoneselfServer(svc, logger, tracer)
 
 	// The gRPC listener mounts the Go kit gRPC server we created.
-	listener, err := net.Listen("tcp", "0.0.0.0:10690")
+	listener, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
+		loggerG.Error(err)
 		os.Exit(1)
 	}
 	defer listener.Close()
@@ -98,25 +97,45 @@ func run(cliCtx *cli.Context) {
 	http.Handle("/metrics", promhttp.Handler())
 
 	//todo 可以设置grpc基础配置
+
+	//creds, _ := credentials.NewServerTLSFromFile(cnf.Server.CertFile, cnf.Server.KeyFile)
 	s := grpc.NewServer(
-		grpc.UnaryInterceptor(kitgrpc.Interceptor),
+	//grpc.UnaryInterceptor(kitgrpc.Interceptor),
+	//grpc.Creds(creds),
 	)
 	pb.RegisterDoneselfServer(s, grpcServer)
 	logrus.Info("grpc start ", listener.Addr())
 
 	go func() {
-		err = http.ListenAndServe("0.0.0.0:10691", nil)
+		err = http.ListenAndServe(metricAddr, nil)
 		if err != nil {
+			loggerG.Error(err)
 			os.Exit(2)
 		}
 	}()
 
+	//health
+	grpc_health_v1.RegisterHealthServer(s, &health.HealthImpl{})
+	reg, err := newConsulRegister(cnf.Consul, &checkConfig{
+		serviceName: cnf.Server.Name,
+		port:        port,
+		ip:          cnf.Server.Host,
+		interval:    cnf.Server.HealthInterval.String(),
+		deregister:  cnf.Server.Deregister.String(),
+	}, logger)
+	if err != nil {
+		logrus.Info(err)
+		os.Exit(9)
+	}
+	reg.Register()
+	defer reg.Deregister()
 	go func() {
 		if err = s.Serve(listener); err != nil {
 			logrus.Error(err)
 			os.Exit(3)
 		}
 	}()
+
 	select {}
 }
 
@@ -129,7 +148,16 @@ func newLogger() (log.Logger, *logrus.Logger) {
 	logger := kitlogrus.NewLogrusLogger(logrusLogger)
 	return logger, logrusLogger
 }
-func newConsulCli(cnf *config.ConsulConfig) (*consulapi.Client, error) {
+
+type checkConfig struct {
+	serviceName string
+	port        int
+	ip          string
+	interval    string
+	deregister  string
+}
+
+func newConsulRegister(cnf *config.ConsulConfig, checkCnf *checkConfig, logger log.Logger) (*kitconsul.Registrar, error) {
 	c := &consulapi.Config{
 		Address:    cnf.Address,
 		Scheme:     cnf.Scheme,
@@ -140,6 +168,7 @@ func newConsulCli(cnf *config.ConsulConfig) (*consulapi.Client, error) {
 			Password: cnf.Password,
 		},
 	}
+	c = consulapi.DefaultConfig()
 	if cnf.TLSconfig != nil && cnf.TLSconfig.Enable {
 		c.TLSConfig = consulapi.TLSConfig{
 			Address:            cnf.TLSconfig.Address,
@@ -147,8 +176,48 @@ func newConsulCli(cnf *config.ConsulConfig) (*consulapi.Client, error) {
 			CAPath:             cnf.TLSconfig.CAPath,
 			CertFile:           cnf.TLSconfig.CertFile,
 			KeyFile:            cnf.TLSconfig.KeyFile,
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: false,
 		}
 	}
-	return consulapi.NewClient(c)
+
+	consulCli, err := consulapi.NewClient(c)
+	if err != nil {
+		return nil, err
+	}
+	id := fmt.Sprintf("%v-%v-%v", checkCnf.serviceName, checkCnf.ip, checkCnf.port)
+
+	//ip := localIP()
+	reg := &consulapi.AgentServiceRegistration{
+		ID:      id,
+		Name:    fmt.Sprintf("grpc.health.v1.%v", checkCnf.serviceName),
+		Port:    checkCnf.port,
+		Tags:    []string{"this is tag"},
+		Address: checkCnf.ip, //ip,
+		Check: &consulapi.AgentServiceCheck{
+			Interval: checkCnf.interval,
+			GRPC:     fmt.Sprintf("%s:%d/%s", checkCnf.ip, checkCnf.port, checkCnf.serviceName),
+			//HTTP:                           fmt.Sprintf("%s:$d", ip, checkCnf.port),
+			DeregisterCriticalServiceAfter: checkCnf.deregister,
+			//Name:                           checkCnf.serviceName,
+			//CheckID:                        id,
+		},
+	}
+	kitcli := kitconsul.NewClient(consulCli)
+
+	register := kitconsul.NewRegistrar(kitcli, reg, logger)
+	return register, nil
+}
+func localIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, address := range addrs {
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return ""
 }
