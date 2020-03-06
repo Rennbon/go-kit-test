@@ -18,12 +18,12 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"strconv"
 
+	kitconsul "github.com/go-kit/kit/sd/consul"
+	kitgrpc "github.com/go-kit/kit/transport/grpc"
+	consulapi "github.com/hashicorp/consul/api"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-
-	kitconsul "github.com/go-kit/kit/sd/consul"
-	consulapi "github.com/hashicorp/consul/api"
 	"net"
 	"net/http"
 	"os"
@@ -46,7 +46,6 @@ func newApp() (app *cli.App) {
 		},
 	}
 	return app
-
 }
 
 func run(cliCtx *cli.Context) {
@@ -100,7 +99,7 @@ func run(cliCtx *cli.Context) {
 
 	//creds, _ := credentials.NewServerTLSFromFile(cnf.Server.CertFile, cnf.Server.KeyFile)
 	s := grpc.NewServer(
-	//grpc.UnaryInterceptor(kitgrpc.Interceptor),
+		grpc.UnaryInterceptor(kitgrpc.Interceptor),
 	//grpc.Creds(creds),
 	)
 	pb.RegisterDoneselfServer(s, grpcServer)
@@ -189,7 +188,7 @@ func newConsulRegister(cnf *config.ConsulConfig, checkCnf *checkConfig, logger l
 	//ip := localIP()
 	reg := &consulapi.AgentServiceRegistration{
 		ID:      id,
-		Name:    fmt.Sprintf("grpc.health.v1.%v", checkCnf.serviceName),
+		Name:    checkCnf.serviceName, //fmt.Sprintf("grpc.health.v1.%v", checkCnf.serviceName),
 		Port:    checkCnf.port,
 		Tags:    []string{"this is tag"},
 		Address: checkCnf.ip, //ip,
