@@ -53,7 +53,7 @@ func run(cliCtx *cli.Context) {
 	cnfPath := cliCtx.String(configPath)
 	//本地调试用
 
-	cnfPath = "/justdo/bc/donself/config/config.toml"
+	//cnfPath = "/justdo/bc/donself/config/config.toml"
 	cnf, err := config.DecodeConfig(cnfPath)
 	if err != nil {
 		loggerG.Error(err)
