@@ -59,6 +59,7 @@ func run(cliCtx *cli.Context) {
 		loggerG.Error(err)
 		os.Exit(1)
 	}
+	loggerG.Info(cnf.Server)
 	grpcAddr := fmt.Sprintf("%v:%v", cnf.Server.Host, cnf.Server.Port)
 	metricAddr := fmt.Sprintf("%v:%v", cnf.Server.Host, cnf.Server.MetricsPort)
 
@@ -167,7 +168,9 @@ func newConsulRegister(cnf *config.ConsulConfig, checkCnf *checkConfig, logger l
 			Password: cnf.Password,
 		},
 	}
+	//本地默认配置
 	c = consulapi.DefaultConfig()
+	logger.Log("consul config:", c)
 	if cnf.TLSconfig != nil && cnf.TLSconfig.Enable {
 		c.TLSConfig = consulapi.TLSConfig{
 			Address:            cnf.TLSconfig.Address,

@@ -78,7 +78,7 @@ func main() {
 
 	ctx1, _ := context.WithTimeout(context.Background(), time.Second*5)
 	address := "www.rennbon.online:10690"
-	address = "127.0.0.1:10690"
+	//address = "127.0.0.1:10690"
 
 	//credentials.n
 	//creds, _ := credentials.NewClientTLSFromFile("/justdo/bc/donself/config/testdata/server.pem", "")
