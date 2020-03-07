@@ -69,13 +69,13 @@ func run(cliCtx *cli.Context) {
 	defer reporter.Close()
 	ep, err := zipkin.NewEndpoint(cnf.Server.Name, grpcAddr)
 	if err != nil {
-		loggerG.Error("tracer endpoint err:", err)
+		loggerG.WithField("zipkin", "newEndPoint").Error(err)
 		os.Exit(5)
 	}
 	port, _ := strconv.Atoi(cnf.Server.Port)
 	nativeTracer, err := zipkin.NewTracer(reporter, zipkin.WithLocalEndpoint(ep), zipkin.WithSharedSpans(true))
 	if err != nil {
-		loggerG.Error("tracer zptracer err:", err)
+		loggerG.WithField("zipkin", "newTracer").Error(err)
 		os.Exit(5)
 	}
 	tracer := zipkinot.Wrap(nativeTracer)
@@ -89,7 +89,7 @@ func run(cliCtx *cli.Context) {
 	// The gRPC listener mounts the Go kit gRPC server we created.
 	listener, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
-		loggerG.Error(err)
+		loggerG.WithField("net", "listen").Error(err)
 		os.Exit(1)
 	}
 	defer listener.Close()
@@ -109,7 +109,7 @@ func run(cliCtx *cli.Context) {
 	go func() {
 		err = http.ListenAndServe(metricAddr, nil)
 		if err != nil {
-			loggerG.Error(err)
+			loggerG.WithField("http", "listenAndServe").Error(err)
 			os.Exit(2)
 		}
 	}()
@@ -124,14 +124,14 @@ func run(cliCtx *cli.Context) {
 		deregister:  cnf.Server.Deregister.String(),
 	}, logger)
 	if err != nil {
-		logrus.Info(err)
+		loggerG.WithField("consul", "newConsulRegister").Error(err)
 		os.Exit(9)
 	}
 	reg.Register()
 	defer reg.Deregister()
 	go func() {
 		if err = s.Serve(listener); err != nil {
-			logrus.Error(err)
+			loggerG.WithField("grpc", "serve").Error(err)
 			os.Exit(3)
 		}
 	}()
