@@ -20,8 +20,8 @@ type Config struct {
 	Consul *ConsulConfig `json:"consul"`
 }
 type ServerConfig struct {
-	Local          bool          `json:"local"`          //是否本机
-	Host           string        `json:"host"`           // 127.0.0.1
+	Local          string        `json:"local"`          //服务器内网地址（用于健康检查等）
+	Host           string        `json:"host"`           //服务器地址 docker必须:0.0.0.0
 	Port           string        `json:"port"`           // grpc 服务端口
 	MetricsPort    string        `json:"metricsport"`    // http metrics端口，供prometheus拉取用
 	Name           string        `json:"name"`           //service name

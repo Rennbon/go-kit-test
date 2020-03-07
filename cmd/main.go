@@ -119,7 +119,7 @@ func run(cliCtx *cli.Context) {
 	reg, err := newConsulRegister(cnf.Consul, &checkConfig{
 		serviceName: cnf.Server.Name,
 		port:        port,
-		ip:          cnf.Server.Host,
+		ip:          cnf.Server.Local, //因为监听consul和本服务都在一台服务器的docker中
 		interval:    cnf.Server.HealthInterval.String(),
 		deregister:  cnf.Server.Deregister.String(),
 	}, logger)
@@ -168,11 +168,8 @@ func newConsulRegister(cnf *config.ConsulConfig, checkCnf *checkConfig, logger l
 			Password: cnf.Password,
 		},
 	}
-	ip := localIP() //checkCnf.ip
-	logger.Log("local ip ", ip)
 	//本地默认配置
 	//c = consulapi.DefaultConfig()
-	logger.Log("consul config:", c)
 	if cnf.TLSconfig != nil && cnf.TLSconfig.Enable {
 		c.TLSConfig = consulapi.TLSConfig{
 			Address:            cnf.TLSconfig.Address,
@@ -188,17 +185,17 @@ func newConsulRegister(cnf *config.ConsulConfig, checkCnf *checkConfig, logger l
 	if err != nil {
 		return nil, err
 	}
-	id := fmt.Sprintf("%v-%v-%v", checkCnf.serviceName, ip, checkCnf.port)
+	id := fmt.Sprintf("%v-%v-%v", checkCnf.serviceName, checkCnf.ip, checkCnf.port)
 
 	reg := &consulapi.AgentServiceRegistration{
 		ID:      id,
 		Name:    checkCnf.serviceName, //fmt.Sprintf("grpc.health.v1.%v", checkCnf.serviceName),
 		Port:    checkCnf.port,
 		Tags:    []string{"this is tag"},
-		Address: ip,
+		Address: checkCnf.ip,
 		Check: &consulapi.AgentServiceCheck{
 			Interval: checkCnf.interval,
-			GRPC:     fmt.Sprintf("%s:%d/%s", ip, checkCnf.port, checkCnf.serviceName),
+			GRPC:     fmt.Sprintf("%s:%d/%s", checkCnf.ip, checkCnf.port, checkCnf.serviceName),
 			//HTTP:                           fmt.Sprintf("%s:$d", ip, checkCnf.port),
 			DeregisterCriticalServiceAfter: checkCnf.deregister,
 			//Name:                           checkCnf.serviceName,
