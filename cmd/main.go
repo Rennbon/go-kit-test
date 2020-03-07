@@ -188,16 +188,16 @@ func newConsulRegister(cnf *config.ConsulConfig, checkCnf *checkConfig, logger l
 	}
 	id := fmt.Sprintf("%v-%v-%v", checkCnf.serviceName, checkCnf.ip, checkCnf.port)
 
-	//ip := localIP()
+	ip := localIP() //checkCnf.ip
 	reg := &consulapi.AgentServiceRegistration{
 		ID:      id,
 		Name:    checkCnf.serviceName, //fmt.Sprintf("grpc.health.v1.%v", checkCnf.serviceName),
 		Port:    checkCnf.port,
 		Tags:    []string{"this is tag"},
-		Address: checkCnf.ip, //ip,
+		Address: ip,
 		Check: &consulapi.AgentServiceCheck{
 			Interval: checkCnf.interval,
-			GRPC:     fmt.Sprintf("%s:%d/%s", checkCnf.ip, checkCnf.port, checkCnf.serviceName),
+			GRPC:     fmt.Sprintf("%s:%d/%s", ip, checkCnf.port, checkCnf.serviceName),
 			//HTTP:                           fmt.Sprintf("%s:$d", ip, checkCnf.port),
 			DeregisterCriticalServiceAfter: checkCnf.deregister,
 			//Name:                           checkCnf.serviceName,
