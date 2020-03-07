@@ -168,6 +168,8 @@ func newConsulRegister(cnf *config.ConsulConfig, checkCnf *checkConfig, logger l
 			Password: cnf.Password,
 		},
 	}
+	ip := localIP() //checkCnf.ip
+	logger.Log("local ip ", ip)
 	//本地默认配置
 	//c = consulapi.DefaultConfig()
 	logger.Log("consul config:", c)
@@ -186,10 +188,8 @@ func newConsulRegister(cnf *config.ConsulConfig, checkCnf *checkConfig, logger l
 	if err != nil {
 		return nil, err
 	}
-	id := fmt.Sprintf("%v-%v-%v", checkCnf.serviceName, checkCnf.ip, checkCnf.port)
+	id := fmt.Sprintf("%v-%v-%v", checkCnf.serviceName, ip, checkCnf.port)
 
-	ip := localIP() //checkCnf.ip
-	logger.Log("local ip ", ip)
 	reg := &consulapi.AgentServiceRegistration{
 		ID:      id,
 		Name:    checkCnf.serviceName, //fmt.Sprintf("grpc.health.v1.%v", checkCnf.serviceName),
@@ -206,7 +206,6 @@ func newConsulRegister(cnf *config.ConsulConfig, checkCnf *checkConfig, logger l
 		},
 	}
 	kitcli := kitconsul.NewClient(consulCli)
-
 	register := kitconsul.NewRegistrar(kitcli, reg, logger)
 	return register, nil
 }
