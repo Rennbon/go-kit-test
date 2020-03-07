@@ -169,7 +169,7 @@ func newConsulRegister(cnf *config.ConsulConfig, checkCnf *checkConfig, logger l
 		},
 	}
 	//本地默认配置
-	c = consulapi.DefaultConfig()
+	//c = consulapi.DefaultConfig()
 	logger.Log("consul config:", c)
 	if cnf.TLSconfig != nil && cnf.TLSconfig.Enable {
 		c.TLSConfig = consulapi.TLSConfig{
