@@ -189,6 +189,7 @@ func newConsulRegister(cnf *config.ConsulConfig, checkCnf *checkConfig, logger l
 	id := fmt.Sprintf("%v-%v-%v", checkCnf.serviceName, checkCnf.ip, checkCnf.port)
 
 	ip := localIP() //checkCnf.ip
+	logger.Log("local ip ", ip)
 	reg := &consulapi.AgentServiceRegistration{
 		ID:      id,
 		Name:    checkCnf.serviceName, //fmt.Sprintf("grpc.health.v1.%v", checkCnf.serviceName),
