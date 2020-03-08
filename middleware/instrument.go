@@ -3,7 +3,7 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"github.com/Rennbon/donself/domain"
+	"github.com/Rennbon/donself/service"
 	"github.com/go-kit/kit/metrics"
 	kitp "github.com/go-kit/kit/metrics/prometheus"
 	basep "github.com/prometheus/client_golang/prometheus"
@@ -13,12 +13,11 @@ import (
 type instrumentingMiddleware struct {
 	requestCount   metrics.Counter
 	requestLatency metrics.Histogram
-	next           domain.DonselfDomain
+	next           service.DonselfService
 }
 
-func WithMetric(svc domain.DonselfDomain) domain.DonselfDomain {
+func WithMetric(svc service.DonselfService) service.DonselfService {
 	m := new(instrumentingMiddleware)
-
 	m.requestCount = kitp.NewCounterFrom(
 		basep.CounterOpts{
 			Namespace: "donself",
@@ -37,11 +36,11 @@ func WithMetric(svc domain.DonselfDomain) domain.DonselfDomain {
 	return m
 }
 
-func (o *instrumentingMiddleware) GetAllMyTargets(ctx context.Context, page *domain.Page) ([]*domain.Target, error) {
+func (o *instrumentingMiddleware) GetAllMyTargets(ctx context.Context, page *service.Page) ([]*service.Target, error) {
 	defer func(begin time.Time) {
 		o.requestCount.Add(1)
 		o.requestLatency.Observe(time.Since(begin).Seconds())
 	}(time.Now())
-	fmt.Println("这里有进来过")
+	fmt.Println("instrument middleware")
 	return o.next.GetAllMyTargets(ctx, page)
 }

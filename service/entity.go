@@ -1,4 +1,4 @@
-package domain
+package service
 
 type Page struct {
 	PageIndex uint32

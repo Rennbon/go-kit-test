@@ -2,12 +2,13 @@ package middleware
 
 import (
 	"context"
-	"github.com/Rennbon/donself/domain"
+	"fmt"
+	"github.com/Rennbon/donself/service"
 	"github.com/go-kit/kit/log"
 	"time"
 )
 
-func WithLogging(svc domain.DonselfDomain, logger log.Logger) domain.DonselfDomain {
+func WithLogging(svc service.DonselfService, logger log.Logger) service.DonselfService {
 	m := new(logmw)
 	m.next = svc
 	m.logger = logger
@@ -16,10 +17,10 @@ func WithLogging(svc domain.DonselfDomain, logger log.Logger) domain.DonselfDoma
 
 type logmw struct {
 	logger log.Logger
-	next   domain.DonselfDomain
+	next   service.DonselfService
 }
 
-func (o *logmw) GetAllMyTargets(ctx context.Context, page *domain.Page) ([]*domain.Target, error) {
+func (o *logmw) GetAllMyTargets(ctx context.Context, page *service.Page) ([]*service.Target, error) {
 	defer func(begin time.Time) {
 		o.logger.Log(
 			"method", "GetAllMyTargets",
@@ -27,5 +28,6 @@ func (o *logmw) GetAllMyTargets(ctx context.Context, page *domain.Page) ([]*doma
 			"took", time.Since(begin),
 		)
 	}(time.Now())
+	fmt.Println("log middleware")
 	return o.next.GetAllMyTargets(ctx, page)
 }

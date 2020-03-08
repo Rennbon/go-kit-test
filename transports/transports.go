@@ -1,36 +1,41 @@
 //传输层，选择传输协议用
-package application
+package transports
 
 import (
 	"context"
 	"errors"
 	"github.com/Rennbon/donself/common"
-	"github.com/Rennbon/donself/domain"
-	"github.com/go-kit/kit/circuitbreaker"
+	"github.com/Rennbon/donself/middleware"
+	"github.com/Rennbon/donself/service"
+	//"github.com/go-kit/kit/circuitbreaker"
 	"github.com/go-kit/kit/endpoint"
-	"github.com/go-kit/kit/tracing/opentracing"
+	"github.com/go-kit/kit/log"
+	//"github.com/go-kit/kit/tracing/opentracing"
 	stdopentracing "github.com/opentracing/opentracing-go"
-	"github.com/sony/gobreaker"
-	"time"
+	//"github.com/sony/gobreaker"
+	//"time"
 )
 
 //对外暴露内层，这里能通过接口方式桥接http,grpc等，
 type Transports struct {
-	svc                  domain.DonselfDomain
+	svc                  service.DonselfService
 	AllMyTargetsEndpoint endpoint.Endpoint
 }
 
 //svc 为业务逻辑层，只需要锚定业务即可，无所考虑等和对外暴露结构相关逻辑，
 //所以这里的入参都是内部实体，竟可能不要用api传进来的实体，否则会污染代码，
 //不适于目前的设计模式，对于拆分解耦也不利。
-func NewTransports(svc domain.DonselfDomain, tracer stdopentracing.Tracer) *Transports {
-	//todo 这里还能做很多
+func NewTransports(svc service.DonselfService, tracer stdopentracing.Tracer, logger log.Logger) *Transports {
 
-	//curcuitBreaker
 	tp := new(Transports)
+	//下面的先执行
+	svc = middleware.WithCircuitBreaker(svc)
+	svc = middleware.WithMetric(svc)
+	svc = middleware.WithLogging(svc, logger)
+	svc = middleware.WithTrace(svc, tracer)
 	tp.svc = svc
 	tp.AllMyTargetsEndpoint = tp.makeAllMyTargetsEndpoint()
-	tp.AllMyTargetsEndpoint = circuitbreaker.Gobreaker(
+	/*	tp.AllMyTargetsEndpoint = circuitbreaker.Gobreaker(
 		gobreaker.NewCircuitBreaker(gobreaker.Settings{
 			Name:        "AllMyTargets",
 			MaxRequests: 2,               //half-open状态下允许放行请求
@@ -40,16 +45,17 @@ func NewTransports(svc domain.DonselfDomain, tracer stdopentracing.Tracer) *Tran
 				return counts.ConsecutiveFailures > 5
 			},
 		}),
-	)(tp.AllMyTargetsEndpoint)
-	tp.AllMyTargetsEndpoint = opentracing.TraceServer(tracer, "AllMyTargets")(tp.AllMyTargetsEndpoint)
+	)(tp.AllMyTargetsEndpoint)*/
+	//tp.AllMyTargetsEndpoint = opentracing.TraceServer(tracer, "AllMyTargets")(tp.AllMyTargetsEndpoint)
 	return tp
 }
 
 func (o *Transports) makeAllMyTargetsEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(*domain.Page)
+		req := request.(*service.Page)
 		ctx, cancelFunc := common.Context()
 		defer cancelFunc()
+		//这里用来调试circuit
 		if req.PageIndex > 50 && req.PageIndex < 100 {
 			return nil, errors.New("手动错误！！！")
 		}

@@ -4,29 +4,27 @@ import (
 	"fmt"
 	"github.com/Rennbon/donself/application"
 	"github.com/Rennbon/donself/config"
-	"github.com/Rennbon/donself/domain"
 	"github.com/Rennbon/donself/health"
-	"github.com/Rennbon/donself/middleware"
 	"github.com/Rennbon/donself/pb"
+	"github.com/Rennbon/donself/service"
 	"github.com/go-kit/kit/log"
 	kitlogrus "github.com/go-kit/kit/log/logrus"
+	kitconsul "github.com/go-kit/kit/sd/consul"
+	kitgrpc "github.com/go-kit/kit/transport/grpc"
+	consulapi "github.com/hashicorp/consul/api"
 	"github.com/opentracing/opentracing-go"
 	zipkinot "github.com/openzipkin-contrib/zipkin-go-opentracing"
 	"github.com/openzipkin/zipkin-go"
 	zipkinhttp "github.com/openzipkin/zipkin-go/reporter/http"
-	"github.com/urfave/cli"
-	"google.golang.org/grpc/health/grpc_health_v1"
-	"strconv"
-
-	kitconsul "github.com/go-kit/kit/sd/consul"
-	kitgrpc "github.com/go-kit/kit/transport/grpc"
-	consulapi "github.com/hashicorp/consul/api"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 )
 
 func main() {
@@ -49,22 +47,27 @@ func newApp() (app *cli.App) {
 }
 
 func run(cliCtx *cli.Context) {
+	//logger 初始化
 	logger, loggerG := newLogger()
 	cnfPath := cliCtx.String(configPath)
 	//本地调试用
 
-	//cnfPath = "/justdo/bc/donself/config/config.toml"
+	cnfPath = "/justdo/bc/donself/config/config.toml"
 	cnf, err := config.DecodeConfig(cnfPath)
 	if err != nil {
 		loggerG.Error(err)
 		os.Exit(1)
 	}
 	loggerG.Info(cnf.Server)
-	grpcAddr := fmt.Sprintf("%v:%v", cnf.Server.Host, cnf.Server.Port)
+
+	//grpc地址
+	port, _ := strconv.Atoi(cnf.Server.Port)
+	grpcAddr := fmt.Sprintf("%v:%v", cnf.Server.Host, port)
+
+	//metric指标地址
 	metricAddr := fmt.Sprintf("%v:%v", cnf.Server.Host, cnf.Server.MetricsPort)
 
-	//zipkin
-	// 创建环境变量
+	//zipkin 创建环境变量
 	reporter := zipkinhttp.NewReporter(cnf.Server.ZipkinReporter)
 	defer reporter.Close()
 	ep, err := zipkin.NewEndpoint(cnf.Server.Name, grpcAddr)
@@ -72,7 +75,6 @@ func run(cliCtx *cli.Context) {
 		loggerG.WithField("zipkin", "newEndPoint").Error(err)
 		os.Exit(5)
 	}
-	port, _ := strconv.Atoi(cnf.Server.Port)
 	nativeTracer, err := zipkin.NewTracer(reporter, zipkin.WithLocalEndpoint(ep), zipkin.WithSharedSpans(true))
 	if err != nil {
 		loggerG.WithField("zipkin", "newTracer").Error(err)
@@ -80,13 +82,14 @@ func run(cliCtx *cli.Context) {
 	}
 	tracer := zipkinot.Wrap(nativeTracer)
 	opentracing.SetGlobalTracer(tracer)
-	//初始化svc逻辑层
-	svc := domain.NewDonselfDomain()
-	svc = middleware.WithMetric(svc)
-	svc = middleware.WithLogging(svc, logger)
+
+	//初始化svc逻辑层 并开始套壳，一层包一层
+	svc := service.NewDonselfService()
+	//svc = middleware.WithMetric(svc)
+	//svc = middleware.WithLogging(svc, logger)
 	grpcServer := application.NewDoneselfServer(svc, logger, tracer)
 
-	// The gRPC listener mounts the Go kit gRPC server we created.
+	// 创建grpc tcp 监听
 	listener, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
 		loggerG.WithField("net", "listen").Error(err)
@@ -94,19 +97,27 @@ func run(cliCtx *cli.Context) {
 	}
 	defer listener.Close()
 
-	http.Handle("/metrics", promhttp.Handler())
-
-	//todo 可以设置grpc基础配置
-
+	//grpc 启动
 	//creds, _ := credentials.NewServerTLSFromFile(cnf.Server.CertFile, cnf.Server.KeyFile)
 	s := grpc.NewServer(
 		grpc.UnaryInterceptor(kitgrpc.Interceptor),
-	//grpc.Creds(creds),
+		//grpc.Creds(creds),
 	)
+	//注册测试服务
 	pb.RegisterDoneselfServer(s, grpcServer)
+	//服务发现用健康检查逻辑注册
+	grpc_health_v1.RegisterHealthServer(s, &health.HealthImpl{})
 	logrus.Info("grpc start ", listener.Addr())
-
 	go func() {
+		if err = s.Serve(listener); err != nil {
+			loggerG.WithField("grpc", "serve").Error(err)
+			os.Exit(3)
+		}
+	}()
+
+	//metrics http 启动
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
 		err = http.ListenAndServe(metricAddr, nil)
 		if err != nil {
 			loggerG.WithField("http", "listenAndServe").Error(err)
@@ -114,8 +125,7 @@ func run(cliCtx *cli.Context) {
 		}
 	}()
 
-	//health
-	grpc_health_v1.RegisterHealthServer(s, &health.HealthImpl{})
+	//consul服务发现逻辑注册
 	reg, err := newConsulRegister(cnf.Consul, &checkConfig{
 		serviceName: cnf.Server.Name,
 		port:        port,
@@ -129,12 +139,6 @@ func run(cliCtx *cli.Context) {
 	}
 	reg.Register()
 	defer reg.Deregister()
-	go func() {
-		if err = s.Serve(listener); err != nil {
-			loggerG.WithField("grpc", "serve").Error(err)
-			os.Exit(3)
-		}
-	}()
 
 	select {}
 }
@@ -186,7 +190,6 @@ func newConsulRegister(cnf *config.ConsulConfig, checkCnf *checkConfig, logger l
 		return nil, err
 	}
 	id := fmt.Sprintf("%v-%v-%v", checkCnf.serviceName, checkCnf.ip, checkCnf.port)
-
 	reg := &consulapi.AgentServiceRegistration{
 		ID:      id,
 		Name:    checkCnf.serviceName, //fmt.Sprintf("grpc.health.v1.%v", checkCnf.serviceName),
@@ -194,18 +197,17 @@ func newConsulRegister(cnf *config.ConsulConfig, checkCnf *checkConfig, logger l
 		Tags:    []string{"this is tag"},
 		Address: checkCnf.ip,
 		Check: &consulapi.AgentServiceCheck{
-			Interval: checkCnf.interval,
-			GRPC:     fmt.Sprintf("%s:%d/%s", checkCnf.ip, checkCnf.port, checkCnf.serviceName),
-			//HTTP:                           fmt.Sprintf("%s:$d", ip, checkCnf.port),
+			Interval:                       checkCnf.interval,
+			GRPC:                           fmt.Sprintf("%s:%d/%s", checkCnf.ip, checkCnf.port, checkCnf.serviceName),
 			DeregisterCriticalServiceAfter: checkCnf.deregister,
-			//Name:                           checkCnf.serviceName,
-			//CheckID:                        id,
 		},
 	}
 	kitcli := kitconsul.NewClient(consulCli)
 	register := kitconsul.NewRegistrar(kitcli, reg, logger)
 	return register, nil
 }
+
+//docker环境下不要中这个，container内部localIP和linux localIP是隔离的
 func localIP() string {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {

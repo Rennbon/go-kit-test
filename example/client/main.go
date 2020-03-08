@@ -78,7 +78,7 @@ func main() {
 
 	ctx1, _ := context.WithTimeout(context.Background(), time.Second*5)
 	address := "www.rennbon.online:10690"
-	//address = "127.0.0.1:10690"
+	address = "192.168.1.101:10690"
 
 	//credentials.n
 	//creds, _ := credentials.NewClientTLSFromFile("/justdo/bc/donself/config/testdata/server.pem", "")
@@ -95,7 +95,7 @@ func main() {
 		PageSize:  10,
 	}
 	ctx, _ := context.WithTimeout(context.Background(), time.Minute*10)
-	for i := uint32(1); i < 2; i++ {
+	for i := uint32(1); i < 200; i++ {
 		time.Sleep(time.Millisecond * 250)
 		go func(num uint32) {
 			req.PageIndex = num
